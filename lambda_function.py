@@ -3,52 +3,63 @@ import json
 import boto3
 import csv
 import io
+import pandas as pd
 from datetime import datetime
 import os
 
-# Create S3 client
+# S3 client
 s3 = boto3.client('s3')
-
-# Bucket name from environment variable
 BUCKET_NAME = os.environ.get("BUCKET_NAME")
 
 def lambda_handler(event, context):
     try:
-        # 1️Fetch JSON data from API
+        # 1️⃣ Fetch JSON data
         url = "https://open.er-api.com/v6/latest/USD"
         with urllib.request.urlopen(url) as response:
             data = json.loads(response.read().decode())
 
-        # 2️Convert JSON to CSV in memory
-        output = io.StringIO()
-        writer = csv.writer(output)
-
-        # Write CSV header
-        writer.writerow(["Currency", "Rate"])
-
-        # Extract rates from JSON
         rates = data.get("rates", {})
+
+        # 2️⃣ Convert to CSV
+        output_csv = io.StringIO()
+        writer = csv.writer(output_csv)
+        writer.writerow(["Currency", "Rate"])
         for currency, rate in rates.items():
             writer.writerow([currency, rate])
+        csv_content = output_csv.getvalue()
+        output_csv.close()
 
-        csv_content = output.getvalue()
-        output.close()
+        # 3️⃣ Convert to Parquet
+        df = pd.DataFrame(list(rates.items()), columns=["Currency", "Rate"])
+        output_parquet = io.BytesIO()
+        df.to_parquet(output_parquet, engine='pyarrow', index=False)
+        parquet_content = output_parquet.getvalue()
+        output_parquet.close()
 
-        # 3️Create timestamped filename
+        # 4️⃣ Timestamped filenames
         timestamp = datetime.utcnow().strftime("%Y-%m-%d-%H-%M-%S")
-        file_name = f"exchange-rates-{timestamp}.csv"
+        csv_file_name = f"exchange-rates-{timestamp}.csv"
+        parquet_file_name = f"exchange-rates-{timestamp}.parquet"
 
-        # 4️ Upload CSV to S3
+        # 5️⃣ Upload CSV to S3
         s3.put_object(
             Bucket=BUCKET_NAME,
-            Key=file_name,
+            Key=csv_file_name,
             Body=csv_content,
-            ContentType="text/csv"
+            ContentType='text/csv'
+        )
+
+        # 6️⃣ Upload Parquet to S3
+        s3.put_object(
+            Bucket=BUCKET_NAME,
+            Key=parquet_file_name,
+            Body=parquet_content,
+            ContentType='application/octet-stream'
         )
 
         return {
             "statusCode": 200,
-            "body": f"CSV file {file_name} uploaded successfully!"
+            "body": f"CSV file {csv_file_name} and Parquet file {parquet_file_name} uploaded successfully!"
         }
 
     except Exception as e:
