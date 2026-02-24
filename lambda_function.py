@@ -13,14 +13,14 @@ BUCKET_NAME = os.environ.get("BUCKET_NAME")
 
 def lambda_handler(event, context):
     try:
-        # 1️⃣ Fetch JSON data
+        # 1️ Fetch JSON data
         url = "https://open.er-api.com/v6/latest/USD"
         with urllib.request.urlopen(url) as response:
             data = json.loads(response.read().decode())
 
         rates = data.get("rates", {})
 
-        # 2️⃣ Convert to CSV
+        # 2️ Convert to CSV
         output_csv = io.StringIO()
         writer = csv.writer(output_csv)
         writer.writerow(["Currency", "Rate"])
@@ -29,19 +29,19 @@ def lambda_handler(event, context):
         csv_content = output_csv.getvalue()
         output_csv.close()
 
-        # 3️⃣ Convert to Parquet
+        # 3️ Convert to Parquet
         df = pd.DataFrame(list(rates.items()), columns=["Currency", "Rate"])
         output_parquet = io.BytesIO()
         df.to_parquet(output_parquet, engine='pyarrow', index=False)
         parquet_content = output_parquet.getvalue()
         output_parquet.close()
 
-        # 4️⃣ Timestamped filenames
+        # 4️ Timestamped filenames
         timestamp = datetime.utcnow().strftime("%Y-%m-%d-%H-%M-%S")
         csv_file_name = f"exchange-rates-{timestamp}.csv"
         parquet_file_name = f"exchange-rates-{timestamp}.parquet"
 
-        # 5️⃣ Upload CSV to S3
+        # 5️ Upload CSV to S3
         s3.put_object(
             Bucket=BUCKET_NAME,
             Key=csv_file_name,
@@ -49,7 +49,7 @@ def lambda_handler(event, context):
             ContentType='text/csv'
         )
 
-        # 6️⃣ Upload Parquet to S3
+        # 6️Upload Parquet to S3
         s3.put_object(
             Bucket=BUCKET_NAME,
             Key=parquet_file_name,
