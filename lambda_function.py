@@ -14,12 +14,12 @@ BUCKET_NAME = os.environ.get("BUCKET_NAME")
 
 def lambda_handler(event, context):
     try:
-        # 1️⃣ Fetch JSON data from API
+        # 1️Fetch JSON data from API
         url = "https://open.er-api.com/v6/latest/USD"
         with urllib.request.urlopen(url) as response:
             data = json.loads(response.read().decode())
 
-        # 2️⃣ Convert JSON to CSV in memory
+        # 2️Convert JSON to CSV in memory
         output = io.StringIO()
         writer = csv.writer(output)
 
@@ -34,11 +34,11 @@ def lambda_handler(event, context):
         csv_content = output.getvalue()
         output.close()
 
-        # 3️⃣ Create timestamped filename
+        # 3️Create timestamped filename
         timestamp = datetime.utcnow().strftime("%Y-%m-%d-%H-%M-%S")
         file_name = f"exchange-rates-{timestamp}.csv"
 
-        # 4️⃣ Upload CSV to S3
+        # 4️ Upload CSV to S3
         s3.put_object(
             Bucket=BUCKET_NAME,
             Key=file_name,
